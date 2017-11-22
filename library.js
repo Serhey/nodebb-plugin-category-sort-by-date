@@ -69,7 +69,7 @@ exports.init = (params, next) => {
 
         if (!normalTidsToGet && stop !== -1) return next(null, [])
 
-        set = `cid:${cid}:tids:lex`
+        set = `cid:${cid}:tids:csbt`
 
         if (start > 0 && totalPinnedCount) start -= totalPinnedCount - pinnedCount
 
@@ -88,15 +88,6 @@ exports.init = (params, next) => {
         })
 
         next(null, tids)
-
-        db.isSetMembers('sortbydate:purged', tids, function (err, isMember) {
-          for (let i = 0; i < tids.length; i++) {
-            if (isMember[i]) {
-              db.sortedSetRemove(set, tids[i])
-              db.setRemove('sortbydate:purged', tids[i])
-            }
-          }
-        })
       },
       (normalTids, next) => {
         normalTids = normalTids.filter(tid => pinnedTids.indexOf(tid) === -1)
@@ -131,7 +122,7 @@ function reindex(next) {
   async.waterfall([
     async.apply(db.getSortedSetRange, 'categories:cid', 0, -1),
     function (cids, next) {
-      let keys = cids.map(function (cid) { return 'cid:' + cid + ':tids:lex' })
+      let keys = cids.map(function (cid) { return 'cid:' + cid + ':tids:csbt' })
 
       db.deleteAll(keys, next)
     },
@@ -141,11 +132,10 @@ function reindex(next) {
     },
     function (topics, next) {
       async.each(topics, function (topic, next) {
-        db.sortedSetAdd('cid:' + topic.cid + ':tids:lex', 0, topic.timestamp + ':' + topic.tid, next)
+        db.sortedSetAdd('cid:' + topic.cid + ':tids:csbt', 0, topic.timestamp + ':' + topic.tid, next)
       }, next)
     },
     async.apply(db.set, 'sortbydate', version),
-    async.apply(db.delete, 'sortbydate:purged')
   ], (err) => {
     next(err)
     if (err) {
@@ -159,26 +149,26 @@ function reindex(next) {
 exports.topicPost = function (data) {
   let topic = data.topic
 
-  db.sortedSetAdd('cid:' + topic.cid + ':tids:lex', 0, topic.timestamp + ':' + topic.tid)
+  db.sortedSetAdd('cid:' + topic.cid + ':tids:csbt', 0, topic.timestamp + ':' + topic.tid)
 
 }
 
 exports.topicPurge = function (data) {
   let topic = data.topic
-  db.sortedSetRemove('cid:' + topic.cid + ':tids:lex', topic.timestamp + ':' + topic.tid)
+  db.sortedSetRemove('cid:' + topic.cid + ':tids:csbt', topic.timestamp + ':' + topic.tid)
 }
 
 exports.topicMove = function (topic) {
   Topics.getTopicField(topic.tid, 'timestamp', function (err, timestamp) {
-    db.sortedSetRemove('cid:' + topic.fromCid + ':tids:lex', timestamp + ':' + topic.tid)
-    db.sortedSetAdd('cid:' + topic.toCid + ':tids:lex', 0, timestamp + ':' + topic.tid)
+    db.sortedSetRemove('cid:' + topic.fromCid + ':tids:csbt', timestamp + ':' + topic.tid)
+    db.sortedSetAdd('cid:' + topic.toCid + ':tids:csbt', 0, timestamp + ':' + topic.tid)
   })
 }
 
 exports.categoryDelete = function (data) {
   let cid = data.cid
 
-  db.delete('cid:' + cid + ':tids:lex')
+  db.delete('cid:' + cid + ':tids:csbt')
 }
 
 exports.adminBuild = (header, next) => {

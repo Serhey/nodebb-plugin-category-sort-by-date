@@ -14,5 +14,7 @@
   "scripts": [
     "./client.js"
   ],
-  "templates": "./public"
+  "templates": "./public",
+  "languages": "languages",
+  "defaultLang": "en-GB"
 }
